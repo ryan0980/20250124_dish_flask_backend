@@ -2,7 +2,6 @@ from datetime import datetime
 
 from wxcloudrun import db
 
-# 在这里定义您的数据模型
 
 # 计数表
 class Counters(db.Model):
