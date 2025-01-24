@@ -301,7 +301,29 @@
       const uploadMsg = document.getElementById("uploadMsg");
 
       if (fileInput.files && fileInput.files[0]) {
-        uploadMsg.textContent = "上传成功!";
+        const formData = new FormData();
+        formData.append("image", fileInput.files[0]);
+
+        $.ajax({
+          url: "/api/upload_image",
+          method: "POST",
+          data: formData,
+          processData: false, // 不处理数据
+          contentType: false, // 不设置内容类型
+        })
+          .done(function (res) {
+            if (res && res.code === 0) {
+              uploadMsg.textContent = res.data.message;
+            } else {
+              uploadMsg.textContent = res.errorMsg || "上传失败";
+              uploadMsg.style.color = "#ff4d4f";
+            }
+          })
+          .fail(function () {
+            uploadMsg.textContent = "上传失败";
+            uploadMsg.style.color = "#ff4d4f";
+          });
+
         // 清空input,允许重复上传同一张图片
         fileInput.value = "";
       }

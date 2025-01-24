@@ -64,3 +64,23 @@ def get_count():
     """
     counter = Counters.query.filter(Counters.id == 1).first()
     return make_succ_response(0) if counter is None else make_succ_response(counter.count)
+
+
+@app.route('/api/upload_image', methods=['POST'])
+def upload_image():
+    """
+    处理图片上传的接口
+    :return: 返回处理结果
+    """
+    if 'image' not in request.files:
+        return make_err_response('没有上传图片')
+    
+    file = request.files['image']
+    if file.filename == '':
+        return make_err_response('未选择图片')
+
+    # TODO: 这里后续添加图片处理逻辑
+        
+    return make_succ_response({
+        'message': '上传成功'
+    })
