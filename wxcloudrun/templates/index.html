@@ -301,7 +301,40 @@
       const uploadMsg = document.getElementById("uploadMsg");
 
       if (fileInput.files && fileInput.files[0]) {
-        uploadMsg.textContent = "上传成功!";
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          // 获取base64数据
+          const base64 = e.target.result;
+
+          // 发送到后端
+          $.ajax({
+            url: "/api/upload_base64",
+            method: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({
+              image: base64,
+            }),
+            success: function (res) {
+              if (res && res.code === 0) {
+                uploadMsg.textContent = res.data.message;
+                uploadMsg.style.color = "#07c160";
+              } else {
+                uploadMsg.textContent = res.errorMsg || "上传失败";
+                uploadMsg.style.color = "#ff4d4f";
+              }
+            },
+            error: function () {
+              uploadMsg.textContent = "上传失败";
+              uploadMsg.style.color = "#ff4d4f";
+            },
+          });
+        };
+
+        // 读取文件为base64
+        reader.readAsDataURL(file);
+
         // 清空input,允许重复上传同一张图片
         fileInput.value = "";
       }
