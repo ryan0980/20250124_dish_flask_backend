@@ -141,15 +141,33 @@ def analyze_menu():
         system_prompt = """
         You are given an image of a menu. Your job is to extract all the menu items and present them in the following format:
 
-        Name | Description | Price
+        Name | Description | Price | Category
+
+        Category numbers:
+        1: Appetizers (前菜、凉菜)
+        2: Main Dishes (主菜、热菜)
+        3: Soups (汤类)
+        4: Rice & Noodles (主食、面食)
+        5: Desserts (甜点)
+        6: Beverages (饮品)
+        7: Others (其他)
 
         Formatting guidelines:
         1. Each menu item must be presented on a separate line.
         2. Do not include empty lines between items.
-        3. Use the separator " | " (pipe with spaces) to separate name, description, and price.
+        3. Use the separator " | " (pipe with spaces) to separate fields.
         4. If a description or price is missing, replace it with the word "null".
-        5. Ensure the description and price are on the same line as the dish name.
+        5. Category must be a number from 1-7 as defined above.
         6. Do not add any extra text, explanations, or formatting.
+
+        Example output:
+        Spring Rolls | Crispy vegetable rolls with sweet chili sauce | 8 | 1
+        Kung Pao Chicken | Spicy diced chicken with peanuts | 15 | 2
+        Hot and Sour Soup | Traditional Chinese soup | 6 | 3
+        Fried Rice | With eggs and vegetables | 12 | 4
+        Mango Pudding | Fresh mango flavor | 6 | 5
+        Green Tea | Hot or cold | 3 | 6
+        Extra Sauce | Choice of sauces | 1 | 7
         """
         
         print("\n=== API Call Info ===")
@@ -173,27 +191,164 @@ def analyze_menu():
         
         # 处理API返回的结果
         menu_text = response.choices[0].message.content.strip()
+        menu_items = menu_text.split('\n')
         
-        print("\n=== API Response ===")
-        print(f"Raw response: {response}")
-        print(f"\nExtracted menu text:\n{menu_text}")
-        print(f"\nProcessing time: {time.time() - start_time:.2f} seconds")
+        print("\n=== Menu Text ===")
+        print(menu_text)
+        
+        # 按类别分类
+        categorized_items = {
+            "1": [],  # Appetizers
+            "2": [],  # Main Dishes
+            "3": [],  # Soups
+            "4": [],  # Rice & Noodles
+            "5": [],  # Desserts
+            "6": [],  # Beverages
+            "7": []   # Others
+        }
+        
+        # 先按类别分类，添加错误处理
+        for item in menu_items:
+            try:
+                parts = item.split(" | ")
+                if len(parts) == 4:  # 确保格式正确
+                    name, desc, price, category = parts
+                    # 清理category字符串，只保留数字
+                    category = ''.join(filter(str.isdigit, category))
+                    # 确保category在有效范围内
+                    if category in categorized_items:
+                        categorized_items[category].append([name, desc, price])
+                    else:
+                        print(f"Warning: Invalid category '{category}' for item '{name}'")
+                else:
+                    print(f"Warning: Invalid format for item: {item}")
+            except Exception as item_error:
+                print(f"Warning: Error processing item '{item}': {str(item_error)}")
+                continue
+        
+        # 构建翻译提示
+        translate_prompt = """
+        将以下菜品信息翻译成中文。要求：
+        1. 必须严格保持原有格式，包括 | 分隔符和空格
+        2. 不要添加任何序号、标点或额外文字
+        3. 价格保持原数字不变
+        4. 如果原文是"null"，保持不变
+        5. 翻译要准确、地道，符合中餐菜单习惯
+        6. 每个菜品占一行，不要有空行
+        7. 保持原有的类别编号不变
+
+        示例输入：
+        Spring Rolls | Crispy vegetable rolls with sweet chili sauce | 8 | 1
+
+        示例输出：
+        春卷 | 香脆蔬菜卷配甜辣酱 | 8 | 1
+
+        需要翻译的内容：
+        """ + menu_text
+        
+        # 调用翻译API
+        translate_response = client.chat.completions.create(
+            model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是一个专业的菜单翻译助手。你的任务是准确翻译菜品信息，不添加任何额外内容。"
+                },
+                {
+                    "role": "user",
+                    "content": translate_prompt
+                }
+            ],
+            max_tokens=4096,
+            temperature=0.3  # 使用较低的温度以获得更稳定的输出
+        )
+        
+        # 处理翻译结果
+        translated_text = translate_response.choices[0].message.content.strip()
+        translated_items = translated_text.split('\n')
+        
+        # 构建最终的分类结果
+        final_categories = {
+            "1": {
+                "name": "前菜/凉菜",
+                "items": []
+            },
+            "2": {
+                "name": "主菜/热菜",
+                "items": []
+            },
+            "3": {
+                "name": "汤类",
+                "items": []
+            },
+            "4": {
+                "name": "主食/面食",
+                "items": []
+            },
+            "5": {
+                "name": "甜点",
+                "items": []
+            },
+            "6": {
+                "name": "饮品",
+                "items": []
+            },
+            "7": {
+                "name": "其他",
+                "items": []
+            }
+        }
+        
+        # 处理翻译后的结果
+        for item in translated_items:
+            try:
+                parts = item.split(" | ")
+                if len(parts) == 4:  # 确保格式正确
+                    name, desc, price, category = parts
+                    # 清理category字符串，只保留数字
+                    category = ''.join(filter(str.isdigit, category))
+                    # 确保category在有效范围内
+                    if category in final_categories:
+                        final_categories[category]["items"].append({
+                            "name": name,
+                            "description": desc,
+                            "price": price,
+                            "category": category
+                        })
+                    else:
+                        print(f"Warning: Invalid category '{category}' for translated item '{name}'")
+            except Exception as item_error:
+                print(f"Warning: Error processing translated item '{item}': {str(item_error)}")
+                continue
         
         # 构建返回数据
         menu_analysis = {
-            "text": menu_text,  # 原始文本
+            "categories": final_categories,
             "processing_time": f"{time.time() - start_time:.2f}",
-            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
+            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S'),
+            "raw_text": menu_text,  # 原始英文文本
+            "translated_text": translated_text,  # 翻译后的中文文本
+            "total_items": len(menu_items)
         }
+        
+        print("\n=== Translation Result ===")
+        print(f"Translated text:\n{translated_text}")
+        print("\n=== Final Categories ===")
+        for cat_id, cat_data in final_categories.items():
+            print(f"\n{cat_data['name']} (Category {cat_id}):")
+            for item in cat_data['items']:
+                print(f"- {item['name']} | {item['description']} | {item['price']}")
         
         return make_succ_response(menu_analysis)
         
     except Exception as e:
+        import traceback
         error_message = str(e)
-        print(f"\n=== Error Details ===")
+        print("\n=== Error Details ===")
         print(f"Error type: {type(e)}")
         print(f"Error message: {error_message}")
-        print(f"Stack trace:", exc_info=True)
+        print("Stack trace:")
+        print(traceback.format_exc())
         return make_err_response({
             "error": f"菜单分析失败: {error_message}",
             "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
