@@ -5,20 +5,15 @@ from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter
 from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
 import base64
-import logging
+import time
 
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
     """
     :return: 返回index页面
     """
-    logging.info(f"根路径请求: {request.method} {request.path}")
-    logging.info(f"请求头: {request.headers}")
-    if request.method == 'GET':
-        return render_template('index.html')
-    else:
-        return make_err_response('根路径不支持POST请求')
+    return render_template('index.html')
 
 
 @app.route('/api/count', methods=['POST'])
@@ -95,23 +90,65 @@ def upload_base64():
     :return: 返回处理结果
     """
     try:
-        logging.info(f"收到上传请求: {request.method} {request.path}")
+        # 获取请求体参数
         params = request.get_json()
-        logging.info(f"请求参数: {params}")
         
         if 'image' not in params:
-            logging.warning("缺少image参数")
             return make_err_response('缺少image参数')
             
+        # 获取base64图片数据
         image_base64 = params['image']
+        
+        # 获取当前时间，格式化为指定格式
         current_time = datetime.now().strftime('%d/%b/%Y %H:%M:%S')
         
-        response = make_succ_response({
+        return make_succ_response({
             'message': f'收到图片 - {current_time}'
         })
-        logging.info(f"返回响应: {response}")
-        return response
         
     except Exception as e:
-        logging.error(f"处理失败: {str(e)}")
+        return make_err_response(str(e))
+
+
+@app.route('/api/analyze_menu', methods=['POST'])
+def analyze_menu():
+    """
+    分析菜单图片并返回结构化数据
+    :return: 返回分析结果
+    """
+    try:
+        # 获取请求体参数
+        params = request.get_json()
+        
+        if 'image' not in params:
+            return make_err_response('缺少image参数')
+            
+        # 获取base64图片数据
+        image_base64 = params['image']
+        
+        # 获取当前时间，用于记录处理时间
+        start_time = time.time()
+        
+        # TODO: 这里后续添加您的菜单分析逻辑
+        # 示例返回数据结构
+        menu_analysis = {
+            "categories": {
+                "1": [  # Cold Dish
+                    ["凉拌黄瓜", "新鲜爽口的黄瓜", "12", "8", "清爽可口"],
+                ],
+                "2": [  # Hot Dish
+                    ["宫保鸡丁", "传统川菜", "38", "9", "经典美味"],
+                ],
+                "4": [],  # Staple Food
+                "5": [],  # Dessert
+                "6": [],  # Tea/Drink
+                "0": []   # Unknown
+            },
+            "processing_time": f"{time.time() - start_time:.2f}",
+            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
+        }
+        
+        return make_succ_response(menu_analysis)
+        
+    except Exception as e:
         return make_err_response(str(e))

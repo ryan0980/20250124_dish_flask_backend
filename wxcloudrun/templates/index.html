@@ -305,12 +305,10 @@
         const reader = new FileReader();
 
         reader.onload = function (e) {
-          // 获取base64数据
           const base64 = e.target.result;
 
-          // 发送到后端
           $.ajax({
-            url: "/api/upload_base64",
+            url: "/api/analyze_menu",
             method: "POST",
             contentType: "application/json",
             data: JSON.stringify({
@@ -318,24 +316,25 @@
             }),
             success: function (res) {
               if (res && res.code === 0) {
-                uploadMsg.textContent = res.data.message;
+                // 显示分析结果
+                const result = res.data;
+                uploadMsg.innerHTML = `分析完成 - ${result.timestamp}<br>处理时间: ${result.processing_time}秒`;
                 uploadMsg.style.color = "#07c160";
+
+                // TODO: 这里可以添加显示详细分析结果的代码
               } else {
-                uploadMsg.textContent = res.errorMsg || "上传失败";
+                uploadMsg.textContent = res.errorMsg || "分析失败";
                 uploadMsg.style.color = "#ff4d4f";
               }
             },
             error: function () {
-              uploadMsg.textContent = "上传失败";
+              uploadMsg.textContent = "请求失败";
               uploadMsg.style.color = "#ff4d4f";
             },
           });
         };
 
-        // 读取文件为base64
         reader.readAsDataURL(file);
-
-        // 清空input,允许重复上传同一张图片
         fileInput.value = "";
       }
     }
