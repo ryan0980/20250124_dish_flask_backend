@@ -1,8 +1,6 @@
 from datetime import datetime
 from flask import render_template, request
 from run import app
-from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid
-from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
 import base64
 import time
@@ -15,100 +13,6 @@ def index():
     :return: 返回index页面
     """
     return render_template('index.html')
-
-
-@app.route('/api/count', methods=['POST'])
-def count():
-    """
-    :return:计数结果/清除结果
-    """
-    try:
-        # 获取请求体参数
-        params = request.get_json()
-
-        # 检查action参数
-        if 'action' not in params:
-            return make_err_response('缺少action参数')
-
-        # 如果数据库未初始化，返回模拟数据
-        if 'db' not in globals() or db is None:
-            return make_succ_response(0)
-
-        # 按照不同的action的值，进行不同的操作
-        action = params['action']
-
-        # 执行自增操作
-        if action == 'inc':
-            counter = query_counterbyid(1)
-            if counter is None:
-                counter = Counters()
-                counter.id = 1
-                counter.count = 1
-                counter.created_at = datetime.now()
-                counter.updated_at = datetime.now()
-                insert_counter(counter)
-            else:
-                counter.id = 1
-                counter.count += 1
-                counter.updated_at = datetime.now()
-                update_counterbyid(counter)
-            return make_succ_response(counter.count)
-
-        # 执行清0操作
-        elif action == 'clear':
-            delete_counterbyid(1)
-            return make_succ_empty_response()
-
-        # action参数错误
-        else:
-            return make_err_response('action参数错误')
-
-    except Exception as e:
-        return make_err_response(str(e))
-
-
-@app.route('/api/count', methods=['GET'])
-def get_count():
-    """
-    :return: 计数的值
-    """
-    counter = Counters.query.filter(Counters.id == 1).first()
-    return make_succ_response(0) if counter is None else make_succ_response(counter.count)
-
-
-@app.route('/health')
-def health_check():
-    """
-    健康检查接口
-    """
-    return make_succ_response('ok')
-
-
-@app.route('/api/upload_base64', methods=['POST'])
-def upload_base64():
-    """
-    处理base64图片上传的接口
-    :return: 返回处理结果
-    """
-    try:
-        # 获取请求体参数
-        params = request.get_json()
-        
-        if 'image' not in params:
-            return make_err_response('缺少image参数')
-            
-        # 获取base64图片数据
-        image_base64 = params['image']
-        
-        # 获取当前时间，格式化为指定格式
-        current_time = datetime.now().strftime('%d/%b/%Y %H:%M:%S')
-        
-        return make_succ_response({
-            'message': f'收到图片 - {current_time}'
-        })
-        
-    except Exception as e:
-        return make_err_response(str(e))
 
 
 @app.route('/api/analyze_menu', methods=['POST'])
@@ -228,20 +132,34 @@ def analyze_menu():
         
         # 构建翻译提示
         translate_prompt = """
-        将以下菜品信息翻译成中文。要求：
-        1. 必须严格保持原有格式，包括 | 分隔符和空格
-        2. 不要添加任何序号、标点或额外文字
-        3. 价格保持原数字不变
-        4. 如果原文是"null"，保持不变
-        5. 翻译要准确、地道，符合中餐菜单习惯
-        6. 每个菜品占一行，不要有空行
-        7. 保持原有的类别编号不变
+        将以下菜品信息完全翻译成中文，包括菜品名称。格式：中文菜名 | 中文描述 | 价格 | 类别编号
 
-        示例输入：
-        Spring Rolls | Crispy vegetable rolls with sweet chili sauce | 8 | 1
+        特别注意：
+        1. 菜品名称必须翻译成标准中文菜名，例如：
+           - Kung Pao Chicken → 宫保鸡丁
+           - Mapo Tofu → 麻婆豆腐
+           - Dry-Fried Green Beans → 干煸四季豆
+        2. 描述部分要用地道的中文烹饪术语，例如：
+           - stir-fried → 翻炒
+           - crispy → 酥脆
+           - spicy → 麻辣/辣味
 
-        示例输出：
-        春卷 | 香脆蔬菜卷配甜辣酱 | 8 | 1
+        格式要求：
+        1. 严格使用 " | " 作为分隔符（含两边空格）
+        2. 每个菜品占一行，不要有空行
+        3. 价格保持数字不变
+        4. 如果是"null"保持不变
+        5. 类别编号保持不变
+        6. 不要添加任何额外内容
+
+        正确示例：
+        宫保鸡丁 | 辣炒鸡丁配花生 | 15 | 2
+        麻婆豆腐 | 川式香辣豆腐 | 12 | 2
+        干煸四季豆 | 爆炒四季豆 | 10 | 1
+
+        错误示例：
+        Kung Pao Chicken | 宫保鸡丁 | 15 | 2  （菜名未翻译）
+        宫保鸡丁：辣子鸡 | 配花生 | 15元 | 2类  （格式错误）
 
         需要翻译的内容：
         """ + menu_text
@@ -252,7 +170,7 @@ def analyze_menu():
             messages=[
                 {
                     "role": "system",
-                    "content": "你是一个专业的菜单翻译助手。你的任务是准确翻译菜品信息，不添加任何额外内容。"
+                    "content": "你是一个专业的中餐菜单翻译助手。你必须将所有内容（包括菜品名称）翻译成地道的中文，使用标准的中餐菜名。保持格式不变，不添加任何额外内容。"
                 },
                 {
                     "role": "user",
@@ -260,7 +178,7 @@ def analyze_menu():
                 }
             ],
             max_tokens=4096,
-            temperature=0.3  # 使用较低的温度以获得更稳定的输出
+            temperature=0.3
         )
         
         # 处理翻译结果
@@ -351,58 +269,5 @@ def analyze_menu():
         print(traceback.format_exc())
         return make_err_response({
             "error": f"菜单分析失败: {error_message}",
-            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
-        })
-
-
-# 添加测试接口
-@app.route('/api/test_together', methods=['GET'])
-def test_together():
-    """
-    测试Together API连接的接口
-    :return: 返回API调用结果
-    """
-    try:
-        start_time = time.time()
-        
-        client = Together(
-            api_key="43a055c9202a487b90992dbc228455059cc9b36ad010dce5372f7b30a04ee0c6"
-        )
-        
-        # 扩展测试提示语，测试更多功能
-        system_prompt = """
-        你是一个中餐菜单分析助手。
-        请按以下格式分析菜品：
-        1. 菜品类型
-        2. 价格合理性
-        3. 推荐指数
-        """
-        
-        test_prompt = "请分析这道菜：宫保鸡丁 38元"
-        
-        response = client.chat.completions.create(
-            model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": test_prompt}
-            ],
-            max_tokens=1024,
-            temperature=0.7  # 添加温度参数控制输出的创造性
-        )
-        
-        # 扩展返回信息
-        return make_succ_response({
-            "message": response.choices[0].message.content,
-            "processing_time": f"{time.time() - start_time:.2f}",
-            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S'),
-            "model": "Meta-Llama-3.1-8B-Instruct-Turbo",
-            "status": "连接成功",
-            "tokens": len(response.choices[0].message.content.split())  # 估算token数
-        })
-        
-    except Exception as e:
-        error_message = str(e)
-        return make_err_response({
-            "error": f"API调用失败: {error_message}",
             "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
         })
