@@ -126,25 +126,62 @@ def analyze_menu():
             
         # 获取base64图片数据
         image_base64 = params['image']
+        print("\n=== API Request Debug Info ===")
+        print(f"Image base64 prefix: {image_base64[:50]}...")
         
-        # 获取当前时间，用于记录处理时间
+        # 记录开始时间
         start_time = time.time()
         
-        # TODO: 这里后续添加您的菜单分析逻辑
-        # 示例返回数据结构
+        # 初始化Together客户端
+        client = Together(
+            api_key="43a055c9202a487b90992dbc228455059cc9b36ad010dce5372f7b30a04ee0c6"
+        )
+        
+        # 设置提示语
+        system_prompt = """
+        You are given an image of a menu. Your job is to extract all the menu items and present them in the following format:
+
+        Name | Description | Price
+
+        Formatting guidelines:
+        1. Each menu item must be presented on a separate line.
+        2. Do not include empty lines between items.
+        3. Use the separator " | " (pipe with spaces) to separate name, description, and price.
+        4. If a description or price is missing, replace it with the word "null".
+        5. Ensure the description and price are on the same line as the dish name.
+        6. Do not add any extra text, explanations, or formatting.
+        """
+        
+        print("\n=== API Call Info ===")
+        print(f"Model: meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo")
+        print(f"Max tokens: 4096")
+        
+        # 调用API
+        response = client.chat.completions.create(
+            model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": system_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+                    ],
+                }
+            ],
+            max_tokens=4096
+        )
+        
+        # 处理API返回的结果
+        menu_text = response.choices[0].message.content.strip()
+        
+        print("\n=== API Response ===")
+        print(f"Raw response: {response}")
+        print(f"\nExtracted menu text:\n{menu_text}")
+        print(f"\nProcessing time: {time.time() - start_time:.2f} seconds")
+        
+        # 构建返回数据
         menu_analysis = {
-            "categories": {
-                "1": [  # Cold Dish
-                    ["凉拌黄瓜", "新鲜爽口的黄瓜", "12", "8", "清爽可口"],
-                ],
-                "2": [  # Hot Dish
-                    ["宫保鸡丁", "传统川菜", "38", "9", "经典美味"],
-                ],
-                "4": [],  # Staple Food
-                "5": [],  # Dessert
-                "6": [],  # Tea/Drink
-                "0": []   # Unknown
-            },
+            "text": menu_text,  # 原始文本
             "processing_time": f"{time.time() - start_time:.2f}",
             "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
         }
@@ -152,7 +189,15 @@ def analyze_menu():
         return make_succ_response(menu_analysis)
         
     except Exception as e:
-        return make_err_response(str(e))
+        error_message = str(e)
+        print(f"\n=== Error Details ===")
+        print(f"Error type: {type(e)}")
+        print(f"Error message: {error_message}")
+        print(f"Stack trace:", exc_info=True)
+        return make_err_response({
+            "error": f"菜单分析失败: {error_message}",
+            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
+        })
 
 
 # 添加测试接口
