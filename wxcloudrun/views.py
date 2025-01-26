@@ -6,6 +6,7 @@ from wxcloudrun.model import Counters
 from wxcloudrun.response import make_succ_empty_response, make_succ_response, make_err_response
 import base64
 import time
+from together import Together
 
 
 @app.route('/')
@@ -152,3 +153,56 @@ def analyze_menu():
         
     except Exception as e:
         return make_err_response(str(e))
+
+
+# 添加测试接口
+@app.route('/api/test_together', methods=['GET'])
+def test_together():
+    """
+    测试Together API连接的接口
+    :return: 返回API调用结果
+    """
+    try:
+        start_time = time.time()
+        
+        client = Together(
+            api_key="43a055c9202a487b90992dbc228455059cc9b36ad010dce5372f7b30a04ee0c6"
+        )
+        
+        # 扩展测试提示语，测试更多功能
+        system_prompt = """
+        你是一个中餐菜单分析助手。
+        请按以下格式分析菜品：
+        1. 菜品类型
+        2. 价格合理性
+        3. 推荐指数
+        """
+        
+        test_prompt = "请分析这道菜：宫保鸡丁 38元"
+        
+        response = client.chat.completions.create(
+            model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": test_prompt}
+            ],
+            max_tokens=1024,
+            temperature=0.7  # 添加温度参数控制输出的创造性
+        )
+        
+        # 扩展返回信息
+        return make_succ_response({
+            "message": response.choices[0].message.content,
+            "processing_time": f"{time.time() - start_time:.2f}",
+            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S'),
+            "model": "Meta-Llama-3.1-8B-Instruct-Turbo",
+            "status": "连接成功",
+            "tokens": len(response.choices[0].message.content.split())  # 估算token数
+        })
+        
+    except Exception as e:
+        error_message = str(e)
+        return make_err_response({
+            "error": f"API调用失败: {error_message}",
+            "timestamp": datetime.now().strftime('%d/%b/%Y %H:%M:%S')
+        })
